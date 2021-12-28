@@ -23,14 +23,7 @@ import (
 	identify "github.com/libp2p/go-libp2p/p2p/protocol/identify"
 )
 
-const offlineIdErrorMessage = `'ipfs id' currently cannot query information on remote
-peers without a running daemon; we are working to fix this.
-In the meantime, if you want to query remote peers using 'ipfs id',
-please run the daemon:
-
-    ipfs daemon &
-    ipfs id QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ
-`
+const offlineIdErrorMessage = "'ipfs id' cannot query information on remote peers without a running daemon; use the --offline option instead."
 
 type IdOutput struct {
 	ID              string
@@ -44,6 +37,10 @@ type IdOutput struct {
 const (
 	formatOptionName   = "format"
 	idFormatOptionName = "peerid-base"
+	// FIXME(BLOCKING): The "offline" name might be colliding with the daemon
+	//  option of the same name or a similar option, getting:
+	//  Error: option name "offline" used multiple times
+	offlineOptionName = "id-offline"
 )
 
 var IDCmd = &cmds.Command{
@@ -71,6 +68,7 @@ EXAMPLE:
 	Options: []cmds.Option{
 		cmds.StringOption(formatOptionName, "f", "Optional output format."),
 		cmds.StringOption(idFormatOptionName, "Encoding used for peer IDs: Can either be a multibase encoded CID or a base58btc encoded multihash. Takes {b58mh|base36|k|base32|b...}.").WithDefault("b58mh"),
+		cmds.BoolOption(offlineOptionName, "If set we do not connect to the peer to retrieve its information but instead just query our local peer store (use this if you do not have a daemon online running.").WithDefault(false),
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		keyEnc, err := ke.KeyEncoderFromString(req.Options[idFormatOptionName].(string))
@@ -102,19 +100,21 @@ EXAMPLE:
 			return cmds.EmitOnce(res, output)
 		}
 
-		// TODO handle offline mode with polymorphism instead of conditionals
-		if !n.IsOnline {
+		offline, _ := req.Options[offlineOptionName].(bool)
+		if !offline && !n.IsOnline {
 			return errors.New(offlineIdErrorMessage)
 		}
 
-		// We need to actually connect to run identify.
-		err = n.PeerHost.Connect(req.Context, peer.AddrInfo{ID: id})
-		switch err {
-		case nil:
-		case kb.ErrLookupFailure:
-			return errors.New(offlineIdErrorMessage)
-		default:
-			return err
+		if !offline {
+			// We need to actually connect to run identify.
+			err = n.PeerHost.Connect(req.Context, peer.AddrInfo{ID: id})
+			switch err {
+			case nil:
+			case kb.ErrLookupFailure:
+				return errors.New(offlineIdErrorMessage)
+			default:
+				return err
+			}
 		}
 
 		output, err := printPeer(keyEnc, n.Peerstore, id)
