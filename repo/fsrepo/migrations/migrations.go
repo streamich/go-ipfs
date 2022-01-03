@@ -120,7 +120,8 @@ func ReadMigrationConfig(repoRoot string) (*config.Migration, error) {
 		Migration config.Migration
 	}
 
-	cfgPath, err := config.Filename(repoRoot)
+	// FIXME(BLOCKING): Decide if we need to add the config file path as an argument (API breaking).
+	cfgPath, err := config.Filename(repoRoot, "")
 	if err != nil {
 		return nil, err
 	}

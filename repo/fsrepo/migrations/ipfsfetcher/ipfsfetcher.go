@@ -287,7 +287,9 @@ func readIpfsConfig(repoRoot *string) (bootstrap []string, peers []peer.AddrInfo
 		return
 	}
 
-	cfgPath, err := config.Filename(*repoRoot)
+	// FIXME(BLOCKING): Decide if we need to add the config file path as
+	//  an extra variable in IpfsFetcher (and extend its constructor).
+	cfgPath, err := config.Filename(*repoRoot, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
